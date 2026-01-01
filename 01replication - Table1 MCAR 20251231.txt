@@ -1,0 +1,493 @@
+seed1 <- round(runif(1)*10000000, 0)
+set.seed(seed1)
+
+library(dplyr)
+library(Amelia)
+library(mice)
+
+s1 <- 10000
+M1 <- 5
+iter1 <- 5
+
+beta1 <- 1.5
+
+n1 <- 1000
+
+#Parameters for Gamma Distribution
+#g <- 0.00; d <- 36.6667
+#g <- 0.25; d <- 14.2007
+#g <- 0.50; d <- 5.2907
+g <- 0.75; d <- 1.8950
+#g <- 1.00; d <- 0.6650
+
+sh <- 3
+sc <- 16
+
+mux <- sh*sc
+sigmax <- sh*sc^2
+
+xbar <- mux
+ybar <- beta1*xbar
+
+ybar1 <- NULL
+ybar2 <- NULL
+ybar3 <- NULL
+ybar4 <- NULL
+ybar5 <- NULL
+ybar6 <- NULL
+ybar7 <- NULL
+ybar8 <- NULL
+ybar9 <- NULL
+ybar10 <- NULL
+
+se1 <- NULL
+se2 <- NULL
+se3 <- NULL
+se4 <- NULL
+se5 <- NULL
+se6 <- NULL
+se7 <- NULL
+se8 <- NULL
+se9 <- NULL
+se10 <- NULL
+
+cor1 <- NULL
+cor2 <- NULL
+cor3 <- NULL
+cor4 <- NULL
+cor5 <- NULL
+cor6 <- NULL
+cor7 <- NULL
+cor8 <- NULL
+cor9 <- NULL
+cor10 <- NULL
+
+df6 <- NULL
+df7 <- NULL
+df8 <- NULL
+df9 <- NULL
+df10 <- NULL
+
+n2 <- NULL
+that1d <- NULL
+r1 <- NULL
+
+start.time1 <- Sys.time()
+
+for(i in 1:s1){
+########################
+#Complete data
+x1 <- rgamma(n1, shape = sh, scale = sc)
+muy <- beta1*x1
+sigmay <- (d^2)*x1^(2*g)
+alpha <- (muy^2)/sigmay
+beta <- sigmay/muy
+y1 <- rgamma(n1, shape=alpha, scale=beta)
+
+ybar1[i] <- mean(y1)
+se1[i] <- sd(y1)/sqrt(n1)
+cor1[i] <- cor(x1, y1)
+
+############
+#Generating missing data
+u1b <- runif(n1, 0, 1)
+y2 <- y1
+y2[u1b < 0.3] <- NA
+
+############
+#Listwise deletion
+ybar2[i] <- mean(y2, na.rm=TRUE)
+df2 <- data.frame(y2, x1)
+colnames(df2) <- c("y3", "x3")
+df2b <- na.omit(df2)
+n2[i] <- nrow(df2b)
+se2[i] <- sd(y2, na.rm=TRUE)/sqrt(n2[i])
+cor2[i] <- cor(x1, y2, use="complete.obs")
+
+############
+#Single ratio imputation: OLS without intercept (g = 0.0)
+model <- lm(y3 ~ x3 -1, data = df2b)
+b1hat <- summary(model)$coef[1, 1]
+y1hat <- b1hat*x1
+y4 <- y2
+y4[is.na(y2)==TRUE] <- y1hat[is.na(y2)==TRUE]
+ybar3[i] <- mean(y4)
+se3[i] <- sd(y4)/sqrt(n1)
+cor3[i] <- cor(y4, x1)
+
+############
+#Single ratio imputation: Ratio of means (g = 0.5)
+b1hat <- mean(df2b$y3)/mean(df2b$x3)
+y1hat <- b1hat*x1
+y4 <- y2
+y4[is.na(y2)==TRUE] <- y1hat[is.na(y2)==TRUE]
+ybar4[i] <- mean(y4)
+se4[i] <- sd(y4)/sqrt(n1)
+cor4[i] <- cor(y4, x1)
+
+############
+#Single ratio imputation: Mean of ratios (g = 1.0)
+b1hat <- mean(df2b$y3/df2b$x3)
+y1hat <- b1hat*x1
+y4 <- y2
+y4[is.na(y2)==TRUE] <- y1hat[is.na(y2)==TRUE]
+ybar5[i] <- mean(y4)
+se5[i] <- sd(y4)/sqrt(n1)
+cor5[i] <- cor(y4, x1)
+
+#############
+#Multiple Ratio Imputation (g = 0.5) based on Takahashi (2017)
+ymean5 <- NULL
+ymeanvar5 <- NULL
+cor6a <- NULL
+
+df3 <- df2b
+
+for(m in 1:M1){
+df4 <- sample_n(tbl = df3, size = n1, replace=TRUE)
+
+w1 <- 1/(df4$x3^(2*0.5))
+
+model7 <- lm(y3 ~ x3 -1, weights = w1, data = df4)
+b1hat <- summary(model7)$coef[1, 1]
+that0c <- summary(model7)$sigma
+
+y1hat <- b1hat*x1 + rnorm(n1, 0, that0c*x1^0.5)
+
+y4 <- y2
+y4[is.na(y2)==TRUE] <- y1hat[is.na(y2)==TRUE]
+ymean5[m] <- mean(y4)
+ymeanvar5[m] <- var(y4)/n1
+cor6a[m] <- cor(y4, x1)
+
+}
+ybar6[i] <- mean(ymean5)
+wbar1 <- mean(ymeanvar5)
+bbar1 <- (1/(M1-1)*sum((ymean5 - mean(ymean5))^2))
+se6[i] <- sqrt(wbar1 + (1+1/M1)*bbar1)
+
+zm1 <- 1/2*log((1 + cor6a)/(1 - cor6a))
+zmbar1 <- mean(zm1)
+rbar1 <- (exp(2*zmbar1)-1)/(exp(2*zmbar1)+1)
+cor6[i] <- rbar1
+
+L1 <- (bbar1 + bbar1/M1)/(wbar1 + (1+1/M1)*bbar1)
+k1 <- 1
+v1 <- (M1-1)/(L1^2)
+v2 <- (n1 - k1 + 1)/(n1 - k1 +3)*(n1 - k1)*(1 - L1)
+df6[i] <- (v1*v2)/(v1 + v2)
+
+############
+#Proposed Method: Multiple generalized ratio imputation (Takahashi, 2026)
+ymean5 <- NULL
+ymeanvar5 <- NULL
+cor7a <- NULL
+
+df3 <- df2b
+
+sampleframe <- matrix(sample(nrow(df3), n1*M1, replace = TRUE),
+                      nrow = n1, ncol = M1) 
+for(m in 1:M1){
+df4 <- df3[sampleframe[,m],]
+
+#OLS: Starting Values
+model0 <- lm(y3 ~ x3 -1, data=df4)
+ehat1 <- residuals(model0)
+ehat2 <- ehat1^2
+
+#Estimating theta: First Stage
+x12 <- df4$x3^2
+model3b <- lm(log(ehat2) ~ log(x12))
+that1c <- summary(model3b)$coef[2, 1]
+
+#Estimating theta: Repetitions
+b6hatj <- NULL
+
+for(j in 1:iter1){
+b1 <- sum(df4$x3^(1-2*that1c)*df4$y3)/sum(df4$x3^(2*(1-that1c)))
+ehat1b <- (df4$y3 - b1*df4$x3)
+ehat2b <- ehat1b^2
+
+model3b <- lm(log(ehat2b) ~ log(x12))
+that1c <- summary(model3b)$coef[2, 1]
+
+w1 <- 1/(df4$x3^(2*that1c))
+model7 <- lm(y3 ~ x3 -1, weights = w1, data = df4)
+b6hatj[j] <- summary(model7)$coef[1, 1]
+that0c <- summary(model7)$sigma
+}
+b1hat <- b6hatj[iter1]
+
+e1hat <- rnorm(n1, 0, that0c*x1^that1c)
+
+y1hat <- b1hat*x1 + e1hat
+
+y4 <- y2
+y4[is.na(y2)==TRUE] <- y1hat[is.na(y2)==TRUE]
+ymean5[m] <- mean(y4)
+ymeanvar5[m] <- var(y4)/n1
+cor7a[m] <- cor(y4, x1)
+}
+ybar7[i] <- mean(ymean5)
+wbar1 <- mean(ymeanvar5)
+bbar1 <- (1/(M1-1)*sum((ymean5 - mean(ymean5))^2))
+se7[i] <- sqrt(wbar1 + (1+1/M1)*bbar1)
+
+zm1 <- 1/2*log((1 + cor7a)/(1 - cor7a))
+zmbar1 <- mean(zm1)
+rbar1 <- (exp(2*zmbar1)-1)/(exp(2*zmbar1)+1)
+cor7[i] <- rbar1
+
+L1 <- (bbar1 + bbar1/M1)/(wbar1 + (1+1/M1)*bbar1)
+k1 <- 1
+v1 <- (M1-1)/(L1^2)
+v2 <- (n1 - k1 + 1)/(n1 - k1 +3)*(n1 - k1)*(1 - L1)
+df7[i] <- (v1*v2)/(v1 + v2)
+
+that1d[i] <- that1c
+
+############
+#Amelia II
+
+a.out <- amelia(df2, m = M1, p2s = 0)
+
+ymean5 <- NULL
+ymeanvar5 <- NULL
+cor8a <- NULL
+
+for(m in 1:M1){
+y4 <- a.out$imputations[[m]]$y3
+ymean5[m] <- mean(y4)
+ymeanvar5[m] <- var(y4)/n1
+cor8a[m] <- cor(y4, x1)
+}
+
+ybar8[i] <- mean(ymean5)
+wbar1 <- mean(ymeanvar5)
+bbar1 <- (1/(M1-1)*sum((ymean5 - mean(ymean5))^2))
+se8[i] <- sqrt(wbar1 + (1+1/M1)*bbar1)
+
+zm1 <- 1/2*log((1 + cor8a)/(1 - cor8a))
+zmbar1 <- mean(zm1)
+rbar1 <- (exp(2*zmbar1)-1)/(exp(2*zmbar1)+1)
+cor8[i] <- rbar1
+
+L1 <- (bbar1 + bbar1/M1)/(wbar1 + (1+1/M1)*bbar1)
+k1 <- 1
+v1 <- (M1-1)/(L1^2)
+v2 <- (n1 - k1 + 1)/(n1 - k1 +3)*(n1 - k1)*(1 - L1)
+df8[i] <- (v1*v2)/(v1 + v2)
+
+############
+#mice1: Bayesian linear model
+
+m.out <- mice(df2, m = M1, maxit = 5, printFlag = FALSE, method = c("norm", ""))
+
+ymean5 <- NULL
+ymeanvar5 <- NULL
+cor9a <- NULL
+
+for(m in 1:M1){
+y4 <- complete(m.out, m)$y3
+
+ymean5[m] <- mean(y4)
+ymeanvar5[m] <- var(y4)/n1
+cor9a[m] <- cor(y4, x1)
+}
+
+ybar9[i] <- mean(ymean5)
+wbar1 <- mean(ymeanvar5)
+bbar1 <- (1/(M1-1)*sum((ymean5 - mean(ymean5))^2))
+se9[i] <- sqrt(wbar1 + (1+1/M1)*bbar1)
+
+zm1 <- 1/2*log((1 + cor9a)/(1 - cor9a))
+zmbar1 <- mean(zm1)
+rbar1 <- (exp(2*zmbar1)-1)/(exp(2*zmbar1)+1)
+cor9[i] <- rbar1
+
+L1 <- (bbar1 + bbar1/M1)/(wbar1 + (1+1/M1)*bbar1)
+k1 <- 1
+v1 <- (M1-1)/(L1^2)
+v2 <- (n1 - k1 + 1)/(n1 - k1 +3)*(n1 - k1)*(1 - L1)
+df9[i] <- (v1*v2)/(v1 + v2)
+
+############
+#mice2: pmm
+
+m.out <- mice(df2, m = M1, maxit = 5, printFlag = FALSE, method = c("pmm", ""))
+
+ymean5 <- NULL
+ymeanvar5 <- NULL
+cor10a <- NULL
+
+for(m in 1:M1){
+y4 <- complete(m.out, m)$y3
+
+ymean5[m] <- mean(y4)
+ymeanvar5[m] <- var(y4)/n1
+cor10a[m] <- cor(y4, x1)
+}
+
+ybar10[i] <- mean(ymean5)
+wbar1 <- mean(ymeanvar5)
+bbar1 <- (1/(M1-1)*sum((ymean5 - mean(ymean5))^2))
+se10[i] <- sqrt(wbar1 + (1+1/M1)*bbar1)
+
+zm1 <- 1/2*log((1 + cor10a)/(1 - cor10a))
+zmbar1 <- mean(zm1)
+rbar1 <- (exp(2*zmbar1)-1)/(exp(2*zmbar1)+1)
+cor10[i] <- rbar1
+
+L1 <- (bbar1 + bbar1/M1)/(wbar1 + (1+1/M1)*bbar1)
+k1 <- 1
+v1 <- (M1-1)/(L1^2)
+v2 <- (n1 - k1 + 1)/(n1 - k1 +3)*(n1 - k1)*(1 - L1)
+df10[i] <- (v1*v2)/(v1 + v2)
+
+#####
+#Progress bar
+barplot(i/s1*100, ylim=c(0, 100))
+
+}
+end.time1 <- Sys.time()
+
+########################
+#95% Confidence Interval
+c1 <- qt(0.975, n1-1)
+
+UL1 <- ybar1 + c1*se1
+LL1 <- ybar1 - c1*se1
+ci1 <- NULL
+ci1[LL1 <= ybar & ybar <= UL1] <- 1
+ci1[LL1 > ybar | ybar > UL1] <- 0
+
+c2 <- qt(0.975, n2-1)
+UL2 <- ybar2 + c2*se2
+LL2 <- ybar2 - c2*se2
+ci2 <- NULL
+ci2[LL2 <= ybar & ybar <= UL2] <- 1
+ci2[LL2 > ybar | ybar > UL2] <- 0
+
+UL3 <- ybar3 + c1*se3
+LL3 <- ybar3 - c1*se3
+ci3 <- NULL
+ci3[LL3 <= ybar & ybar <= UL3] <- 1
+ci3[LL3 > ybar | ybar > UL3] <- 0
+
+UL4 <- ybar4 + c1*se4
+LL4 <- ybar4 - c1*se4
+ci4 <- NULL
+ci4[LL4 <= ybar & ybar <= UL4] <- 1
+ci4[LL4 > ybar | ybar > UL4] <- 0
+
+UL5 <- ybar5 + c1*se5
+LL5 <- ybar5 - c1*se5
+ci5 <- NULL
+ci5[LL5 <= ybar & ybar <= UL5] <- 1
+ci5[LL5 > ybar | ybar > UL5] <- 0
+
+c6 <- qt(0.975, df6)
+UL6 <- ybar6 + c6*se6
+LL6 <- ybar6 - c6*se6
+ci6 <- NULL
+ci6[LL6 <= ybar & ybar <= UL6] <- 1
+ci6[LL6 > ybar | ybar > UL6] <- 0
+
+c7 <- qt(0.975, df7)
+UL7 <- ybar7 + c7*se7
+LL7 <- ybar7 - c7*se7
+ci7 <- NULL
+ci7[LL7 <= ybar & ybar <= UL7] <- 1
+ci7[LL7 > ybar | ybar > UL7] <- 0
+
+c8 <- qt(0.975, df8)
+UL8 <- ybar8 + c8*se8
+LL8 <- ybar8 - c8*se8
+ci8 <- NULL
+ci8[LL8 <= ybar & ybar <= UL8] <- 1
+ci8[LL8 > ybar | ybar > UL8] <- 0
+
+c9 <- qt(0.975, df9)
+UL9 <- ybar9 + c9*se9
+LL9 <- ybar9 - c9*se9
+ci9 <- NULL
+ci9[LL9 <= ybar & ybar <= UL9] <- 1
+ci9[LL9 > ybar | ybar > UL9] <- 0
+
+c10 <- qt(0.975, df10)
+UL10 <- ybar10 + c10*se10
+LL10 <- ybar10 - c10*se10
+ci10 <- NULL
+ci10[LL10 <= ybar & ybar <= UL10] <- 1
+ci10[LL10 > ybar | ybar > UL10] <- 0
+
+########################
+#Percent Bias
+PB1 <- c(
+abs(mean(ybar1)-ybar)/ybar*100,
+abs(mean(ybar2)-ybar)/ybar*100,
+abs(mean(ybar3)-ybar)/ybar*100,
+abs(mean(ybar4)-ybar)/ybar*100,
+abs(mean(ybar5)-ybar)/ybar*100,
+abs(mean(ybar6)-ybar)/ybar*100,
+abs(mean(ybar8)-ybar)/ybar*100,
+abs(mean(ybar9)-ybar)/ybar*100,
+abs(mean(ybar10)-ybar)/ybar*100,
+abs(mean(ybar7)-ybar)/ybar*100
+)
+
+#Coverage Rate
+CR1 <- c(
+mean(ci1)*100,
+mean(ci2)*100,
+mean(ci3)*100,
+mean(ci4)*100,
+mean(ci5)*100,
+mean(ci6)*100,
+mean(ci8)*100,
+mean(ci9)*100,
+mean(ci10)*100,
+mean(ci7)*100
+)
+
+#Average CI Length
+ACIL1 <- c(
+mean(UL1 - LL1),
+mean(UL2 - LL2),
+mean(UL3 - LL3),
+mean(UL4 - LL4),
+mean(UL5 - LL5),
+mean(UL6 - LL6),
+mean(UL8 - LL8),
+mean(UL9 - LL9),
+mean(UL10 - LL10),
+mean(UL7 - LL7)
+)
+
+#Correlation
+corr1 <- c(
+mean(cor1),
+mean(cor2),
+mean(cor3),
+mean(cor4),
+mean(cor5),
+mean(cor6),
+mean(cor8),
+mean(cor9),
+mean(cor10),
+mean(cor7)
+)
+
+seeds1 <- c(rep(seed1, 10))
+
+output1 <- data.frame(PB1, CR1, ACIL1, corr1, seeds1)
+
+row.names(output1) <- c("comp", "LW", "SI1", "SI2", "SI3", "MRI05", "Amelia", "mice1", "mice2", "MGRI")
+
+output2 <- round(output1, 2)
+output2
+
+end.time1 - start.time1
+length(cor10)
+summary(n2)
+
