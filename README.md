@@ -10,3 +10,7 @@ source("MrImputationII.R")
 
 Method 2
 source(file.choose())
+
+Takahashi, M. (2026) “Multiple generalized ratio imputation for missing data in official economic statistics: A flexible ratio estimator that automatically specifies the degree of heteroskedasticity.” Under review.
+
+Takahashi, M. 2025. “The treatment of missing values in official statistics.” The Journal of Economics 65, no. 5/6: 125-136.
