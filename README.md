@@ -8,3 +8,9 @@ To use this package, click “Code” and “Download ZIP”. After downloading 
 Takahashi, M. (2026) “Multiple imputation by the flexible ratio estimator that automatically specifies the degree of heteroskedasticity.”
 
 Takahashi, M. (2025) “The treatment of missing values in official statistics.” The Journal of Economics 65, no. 5/6: 125-136.
+
+Replication materials for Takahashi (2026)
+"01replication - Table1 MCAR20260104.txt"
+"02replication - Table2Left-Tailed MAR20260104.txt"
+"03replication - Table3Middle MAR20260104.txt"
+"04replication - Table4Right-Tailed MAR20260104.txt"
