@@ -1,7 +1,7 @@
 # MrImputationII
 This is a preliminary version of R-Package MrImputation II, which implements the methods proposed by Takahashi (2025) and Takahashi (2026). 
 
-First, take a look at "00ReadMe.pdf".
+First, take a look at "ReadMe.pdf".
 
 To use this package, click “Code” and “Download ZIP”. After downloading the package, set the working directory in R, and read R-Package MrImputationII.
 
